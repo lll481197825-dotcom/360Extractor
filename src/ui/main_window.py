@@ -400,11 +400,12 @@ class MainWindow(QMainWindow):
 
         # Camera Layout
         self.layout_combo = QComboBox()
-        self.layout_combo.addItem("Adaptive (Auto)", "adaptive")
-        self.layout_combo.addItem("Ring (Horizon Only)", "ring")
-        self.layout_combo.currentIndexChanged.connect(self.on_setting_changed)
+        self.layout_combo.addItem("Ring", "ring")
+        self.layout_combo.addItem("Cube Map", "cube")
+        self.layout_combo.addItem("Fibonacci Sphere", "fibonacci")
+        self.layout_combo.currentIndexChanged.connect(self.on_layout_changed)
         self.layout_combo.installEventFilter(self.scroll_blocker)
-        self.add_setting_row(camera_layout, "Layout Mode:", self.layout_combo, "Adaptive: Uses Cube/Sphere for ≥6 cameras. Ring: Forces horizon-only layout.")
+        self.add_setting_row(camera_layout, "Layout Mode:", self.layout_combo, "Choose camera arrangement.")
 
         # Camera Inclination (Pitch)
         self.pitch_combo = QComboBox()
@@ -605,12 +606,24 @@ class MainWindow(QMainWindow):
         self.fov_spin.setValue(settings.get('fov', 90))
         self.cam_count_spin.setValue(settings.get('camera_count', 6))
         
-        layout_val = settings.get('layout_mode', 'adaptive')
+        layout_val = settings.get('layout_mode', 'ring')
+        # Handle legacy 'adaptive' -> default to 'ring'
+        if layout_val == 'adaptive':
+             layout_val = 'ring'
+
         idx = self.layout_combo.findData(layout_val)
         if idx >= 0:
             self.layout_combo.setCurrentIndex(idx)
         else:
             self.layout_combo.setCurrentIndex(0)
+            
+        # Update UI state for layout
+        if layout_val == 'cube':
+            self.cam_count_spin.setEnabled(False)
+            # Ensure count is 6 (though settings should have it, enforcement is good)
+            self.cam_count_spin.setValue(6)
+        else:
+            self.cam_count_spin.setEnabled(True)
 
         pitch_val = settings.get('pitch_offset', 0)
         index = self.pitch_combo.findData(pitch_val)
@@ -657,6 +670,15 @@ class MainWindow(QMainWindow):
 
     def on_adaptive_toggled(self, checked):
         self.motion_threshold_spin.setEnabled(checked)
+        self.on_setting_changed()
+
+    def on_layout_changed(self, index):
+        mode = self.layout_combo.currentData()
+        if mode == 'cube':
+            self.cam_count_spin.setValue(6)
+            self.cam_count_spin.setEnabled(False)
+        else:
+            self.cam_count_spin.setEnabled(True)
         self.on_setting_changed()
 
     def select_output_directory(self):

@@ -31,7 +31,7 @@ def parse_arguments():
     parser.add_argument("--camera-count", type=int, help="Number of virtual cameras (default: 6)")
     parser.add_argument("--quality", type=int, help="JPEG quality (1-100, default: 95)")
     parser.add_argument("--active-cameras", type=str, help="Comma-separated list of active camera indices (e.g. '0,1,4')")
-    parser.add_argument("--layout", type=str, choices=['adaptive', 'ring'], help="Camera layout mode (adaptive/ring, default: adaptive)")
+    parser.add_argument("--layout", type=str, choices=['ring', 'cube', 'fibonacci'], help="Camera layout mode (ring/cube/fibonacci, default: ring)")
     parser.add_argument("--adaptive", action="store_true", help="Enable adaptive interval (motion-based)")
     parser.add_argument("--motion-threshold", type=float, help="Motion threshold for adaptive interval (default: 0.5)")
     parser.add_argument("--export-telemetry", action="store_true", help="Export GPS/IMU metadata (if available)")
@@ -144,7 +144,7 @@ def run_cli(args):
     fmt = args.format if args.format is not None else config.get('format', 'jpg')
     cam_count = args.camera_count if args.camera_count is not None else config.get('camera_count', 6)
     quality = args.quality if args.quality is not None else config.get('quality', 95)
-    layout_mode = args.layout if args.layout is not None else config.get('layout_mode', 'adaptive')
+    layout_mode = args.layout if args.layout is not None else config.get('layout_mode', 'ring')
     
     # AI Mode logic
     ai_enabled = args.ai # This is True/False from CLI

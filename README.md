@@ -9,11 +9,11 @@ High-performance desktop application and command-line tool for 360° video prepr
     - **GUI:** User-friendly interface with drag-and-drop support, real-time preview, and batch processing queue.
     - **CLI:** Headless mode for server environments, automation scripts, and remote execution.
 - **Advanced Camera Control:**
-    - **Dynamic Camera Count:** Configure 2 to 36 cameras with intelligent distribution:
-        - *n < 6:* Ring layout (equally spaced horizon).
-        - *n = 6:* **Cube layout** (Front, Right, Back, Left, Up, Down).
-        - *n > 6:* **Fibonacci Sphere** distribution for optimal even coverage.
-    - **Layout Control:** Choose between **Adaptive** (default behaviors above) or **Ring** (forced horizontal layout) for any camera count.
+    - **Dynamic Camera Count:** Configure 2 to 36 cameras.
+    - **Layout Modes:** Choose from three explicit layout strategies:
+        - **Ring:** Horizontal ring layout (equally spaced horizon). Available for any camera count.
+        - **Cube Map:** Standard 6-sided cube (Front, Right, Back, Left, Up, Down). Locks camera count to 6.
+        - **Fibonacci:** Evenly distributed sphere points (Fibonacci Sphere). Available for any camera count.
     - **Selective Extraction:** Render only specific camera angles (e.g., only Front and Back) to save processing time and storage.
     - **Inclination:** Adjust camera pitch (Standard 0°, High -20°, Low +20°) for different capture scenarios.
 - **Blur Filter:** Automatically detect and discard blurry frames based on a configurable threshold (Variance of Laplacian).
@@ -91,7 +91,7 @@ python src/main.py --input <video_path> --output <output_dir> [options]
 | `--format` | Output image format (`jpg` or `png`). | `jpg` |
 | `--camera-count` | Number of virtual cameras (2-36). | `6` |
 | `--active-cameras` | Comma-separated list of camera indices to extract (e.g., `0,2,4`). | All |
-| `--layout` | Camera layout mode. 'adaptive' (default) uses Cube/Fibonacci for n>=6. 'ring' forces Ring layout. | `adaptive` |
+| `--layout` | Camera layout mode: `ring`, `cube`, or `fibonacci`. | `ring` |
 | `--quality` | JPEG quality (1-100). | `95` |
 | `--ai` | Enable AI processing (Generate Mask) for operator removal. | `False` |
 | `--adaptive` | Enable intelligent keyframing (skip static scenes). | `False` |
@@ -148,9 +148,10 @@ You can define job settings in a JSON file for reuse or complex configurations.
     *   *< 6:* Ring layout (equally spaced horizon).
     *   *6:* **Cube layout** (Front, Right, Back, Left, Up, Down).
     *   *> 6:* **Fibonacci Sphere** distribution for even coverage.
-*   **Camera Layout:** Override the default adaptive distribution.
-    *   *Adaptive:* Uses the standard behavior (Ring < 6, Cube = 6, Fibonacci > 6).
-    *   *Ring:* Forces a horizontal ring layout for any number of cameras (useful for panoramas).
+*   **Camera Layout:** Select the geometric arrangement of cameras.
+    *   *Ring:* Horizontal ring layout (equally spaced horizon).
+    *   *Cube Map:* Standard 6-sided cube (Front, Right, Back, Left, Up, Down). Locks camera count to 6.
+    *   *Fibonacci:* Evenly distributed points on a sphere.
 *   **Camera Inclination:** Adjust the vertical tilt of horizontal cameras.
     *   *Standard (0°):* Horizon level.
     *   *High / Perch (-20°):* Tilted down (good for cameras on a high stick).

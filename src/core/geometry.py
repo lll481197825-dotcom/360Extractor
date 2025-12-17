@@ -8,31 +8,22 @@ class GeometryProcessor:
     """
 
     @staticmethod
-    def generate_views(n, pitch_offset=0, layout_mode='adaptive'):
+    def generate_views(n, pitch_offset=0, layout_mode='ring'):
         """
         Generate a list of (name, yaw, pitch, roll) tuples for n cameras.
         
         Args:
-            n (int): Number of cameras (2-36)
+            n (int): Number of cameras (2-36). Ignored if layout_mode is 'cube'.
             pitch_offset (float): Offset in degrees for vertical inclination (e.g. -20 for High/Perch)
-            layout_mode (str): 'adaptive' (default) or 'ring'.
-                               'adaptive' uses Ring for <6, Cube for 6, Fib for >6.
-                               'ring' forces horizon-only ring layout.
+            layout_mode (str): 'ring', 'cube', or 'fibonacci'.
             
         Returns:
             list: List of (name, yaw, pitch, roll) tuples.
         """
         views = []
         
-        # Force Ring layout if requested OR if n < 6 (adaptive default)
-        if layout_mode == 'ring' or (layout_mode == 'adaptive' and n < 6):
-            # Ring layout (equidistant along horizon)
-            for i in range(n):
-                yaw = (i * 360.0) / n
-                views.append((f"View_{i}", yaw, pitch_offset, 0))
-                
-        elif n == 6:
-            # Cube layout
+        if layout_mode == 'cube':
+            # Cube layout (exactly 6 views)
             # Front, Right, Back, Left, Up, Down
             # Apply pitch_offset only to horizontal views
             
@@ -46,7 +37,7 @@ class GeometryProcessor:
             views.append(("Up", 0.0, 90.0, 0))
             views.append(("Down", 0.0, -90.0, 0))
             
-        else:
+        elif layout_mode == 'fibonacci':
             # Fibonacci Sphere layout
             # Use the Golden Section Spiral algorithm to distribute points evenly
             dst = 2.0 / n
@@ -77,6 +68,12 @@ class GeometryProcessor:
                 final_pitch = pitch_deg + pitch_offset
                 
                 views.append((f"View_{i}", yaw_deg, final_pitch, 0))
+
+        else:
+            # Default to 'ring' layout (equidistant along horizon)
+            for i in range(n):
+                yaw = (i * 360.0) / n
+                views.append((f"View_{i}", yaw, pitch_offset, 0))
                 
         return views
 

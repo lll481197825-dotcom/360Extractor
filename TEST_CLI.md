@@ -102,28 +102,35 @@ We have provided test scripts to quickly verify these features work as expected.
     *This script creates a temporary video, runs the CLI requesting cameras 0 and 2, and asserts that only those files were created.*
 
 3.  **Verify Layout Logic:**
-    Run the geometry verification script to check if the layout logic (Adaptive vs Ring) produces the correct camera names.
+    Run the geometry verification script to check if the layout logic (Ring, Cube, Fibonacci) produces the correct camera names.
     ```bash
     python tests/verify_layout_toggle.py
     ```
 
-## Section 5: Testing Layout Toggle
+## Section 5: Testing Layout Modes
 
-You can now force a specific camera layout using the `--layout` argument. This is particularly useful if you want a 6-camera ring layout instead of the default cube layout.
+You can specify the camera layout using the `--layout` argument. Choices are `ring`, `cube`, and `fibonacci`.
 
-**1. Force Ring Layout (6 Cameras):**
-This command forces a horizontal ring layout even for 6 cameras (which usually defaults to Cube).
+**1. Ring Layout:**
+Produces a horizontal ring of cameras.
 ```bash
 python src/main.py --input videos/sample_360.mp4 --output frames/ring_test --camera-count 6 --layout ring
 ```
 *Result: 6 horizon views (View_0 to View_5).*
 
-**2. Adaptive Layout (Default):**
-This uses the standard behavior (Cube for 6 cameras).
+**2. Cube Map:**
+Produces a standard 6-sided cube layout (Front, Right, Back, Left, Up, Down). Note: Camera count is forced to 6.
 ```bash
-python src/main.py --input videos/sample_360.mp4 --output frames/cube_test --camera-count 6 --layout adaptive
+python src/main.py --input videos/sample_360.mp4 --output frames/cube_test --layout cube
 ```
-*Result: Cube views (Front, Right, Back, Left, Up, Down).*
+*Result: Standard Cube views.*
+
+**3. Fibonacci Sphere:**
+Produces cameras distributed evenly on a sphere.
+```bash
+python src/main.py --input videos/sample_360.mp4 --output frames/fib_test --camera-count 20 --layout fibonacci
+```
+*Result: 20 views distributed spherically.*
 
 ## Section 6: Testing Adaptive Interval (Intelligent Keyframing)
 
