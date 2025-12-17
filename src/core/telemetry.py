@@ -5,6 +5,7 @@ import bisect
 from typing import Optional, Tuple, Any, List, Dict
 import piexif
 from src.utils.gpmf_parser import GPMFParser
+from src.utils.srt_parser import parse_srt_data
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class TelemetryHandler:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             data = json.loads(result.stdout)
             
+            subtitle_stream_index = None
+
             for stream in data.get('streams', []):
                 codec_tag_string = stream.get('codec_tag_string', '')
                 codec_type = stream.get('codec_type', '')
@@ -46,6 +49,17 @@ class TelemetryHandler:
                             self._extract_gpmf_data(video_path, stream_index)
                         
                         return True
+                
+                # Check for subtitles (often used by DJI)
+                if codec_type == 'subtitle' and subtitle_stream_index is None:
+                    subtitle_stream_index = stream.get('index')
+            
+            # If no GPMF/CAMM found, try subtitles
+            if subtitle_stream_index is not None:
+                logger.info(f"No GPMF/CAMM found. Trying subtitle stream {subtitle_stream_index} for DJI telemetry.")
+                self._extract_srt_data(video_path, subtitle_stream_index)
+                if self.has_gps:
+                    return True
                         
             logger.info("No known telemetry stream found.")
             return False
@@ -82,6 +96,35 @@ class TelemetryHandler:
             logger.error(f"FFmpeg extraction failed: {e}")
         except Exception as e:
             logger.error(f"Error parsing GPMF data: {e}")
+
+    def _extract_srt_data(self, video_path: str, stream_index: int):
+        """
+        Extracts and parses SRT subtitle data from the video (DJI style).
+        """
+        try:
+            cmd = [
+                'ffmpeg',
+                '-y',
+                '-i', video_path,
+                '-map', f'0:{stream_index}',
+                '-f', 'srt',
+                '-'
+            ]
+            result = subprocess.run(cmd, capture_output=True, check=True)
+            raw_data = result.stdout
+            
+            self.gps_samples = parse_srt_data(raw_data)
+            
+            if self.gps_samples:
+                self.has_gps = True
+                logger.info(f"Extracted {len(self.gps_samples)} GPS samples from subtitles.")
+            else:
+                logger.warning("Subtitle stream found, but no GPS data extracted.")
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg subtitle extraction failed: {e}")
+        except Exception as e:
+            logger.error(f"Error parsing SRT data: {e}")
 
     def get_gps_at_time(self, timestamp: float) -> Optional[Tuple[float, float, float]]:
         """
