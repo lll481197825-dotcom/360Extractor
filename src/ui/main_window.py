@@ -396,7 +396,7 @@ class MainWindow(QMainWindow):
         self.cam_count_spin.setValue(6)
         self.cam_count_spin.valueChanged.connect(self.on_setting_changed)
         self.cam_count_spin.installEventFilter(self.scroll_blocker)
-        self.add_setting_row(camera_layout, "Camera Count:", self.cam_count_spin, "Number of virtual cameras (Ring < 6, Cube = 6, Sphere > 6).")
+        self.add_setting_row(camera_layout, "Camera Count:", self.cam_count_spin, "Number of virtual cameras to extract (2-36). Note: Locked to 6 for Cube Map layout.")
 
         # Camera Layout
         self.layout_combo = QComboBox()
