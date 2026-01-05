@@ -60,6 +60,16 @@ class ProcessingWorker(QObject):
         
         self.finished.emit()
 
+    def generate_filename(self, pattern, context):
+        """
+        Generates a filename based on the provided pattern and context variables.
+        Context: {filename}, {frame}, {camera}, {ext}, {image_name}
+        """
+        result = pattern
+        for key, value in context.items():
+            result = result.replace(f"{{{key}}}", str(value))
+        return result
+
     def process_video(self, job, job_index, total_jobs):
         file_path = job.file_path
         filename = os.path.basename(file_path)
@@ -287,9 +297,56 @@ class ProcessingWorker(QObject):
                         elif ai_mode_internal == 'generate_mask':
                             mask_or_skip = result_extra
                     
+                    
                     # 5. Save
                     if final_img is not None:
-                        save_name = f"{name_no_ext}_frame{frame_idx:06d}_{name}{ext}"
+                        # Naming Logic
+                        naming_mode = job.settings.get('naming_mode', 'realityscan')
+                        
+                        # Context variables for naming
+                        ctx = {
+                            'filename': name_no_ext,
+                            'frame': f"{frame_idx:06d}",
+                            'camera': name,
+                            'ext': ext
+                        }
+                        
+                        save_name = ""
+                        mask_name = ""
+
+                        if naming_mode == 'realityscan':
+                             # Standard RealityScan: [orig_name]_frame[X]_[cam].jpg
+                             save_name = f"{name_no_ext}_frame{frame_idx:06d}_{name}{ext}"
+                             # Mask: [image_name].mask.png
+                             mask_name = f"{save_name}.mask.png"
+                             
+                        elif naming_mode == 'simple':
+                            # Simple Suffix: [orig_name]_frame[X]_[cam].jpg
+                            save_name = f"{name_no_ext}_frame{frame_idx:06d}_{name}{ext}"
+                            # Mask: [orig_name]_frame[X]_[cam]_mask.png
+                            mask_name = f"{name_no_ext}_frame{frame_idx:06d}_{name}_mask.png"
+                            
+                        elif naming_mode == 'custom':
+                            img_pattern = job.settings.get('image_pattern', '{filename}_frame{frame}_{camera}')
+                            mask_pattern = job.settings.get('mask_pattern', '{filename}_frame{frame}_{camera}_mask')
+                            
+                            # Generate Image Name
+                            # Note: pattern likely doesn't include extension, so we add it if missing or just append
+                            # Ideally, pattern is the "stem". We enforce {ext} if user put it, or append standard ext
+                            if '{ext}' in img_pattern:
+                                save_name = self.generate_filename(img_pattern, ctx)
+                            else:
+                                save_name = self.generate_filename(img_pattern, ctx) + ext
+                                
+                            # Update context with the generated image name (excluding ext mostly, but let's see usage)
+                            # Ideally {image_name} is the full filename of the image
+                            ctx['image_name'] = save_name
+                            
+                            if '{ext}' in mask_pattern:
+                                mask_name = self.generate_filename(mask_pattern, ctx)
+                            else:
+                                mask_name = self.generate_filename(mask_pattern, ctx) + ".png" # Masks always png
+
                         full_save_path = os.path.join(output_dir, save_name)
                         FileManager.save_image(full_save_path, final_img, save_params)
                         
@@ -297,9 +354,6 @@ class ProcessingWorker(QObject):
                             telemetry_handler.embed_exif(full_save_path, *current_gps)
 
                         if mask_or_skip is not None and isinstance(mask_or_skip, np.ndarray):
-                            # RealityScan naming convention: [Filename].[ext].mask.png
-                            # Masks are typically kept as PNG for transparency support
-                            mask_name = f"{save_name}.mask.png"
                             FileManager.save_mask(os.path.join(output_dir, mask_name), mask_or_skip)
             
             frame_idx += 1

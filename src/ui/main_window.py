@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QPushButton, QGroupBox, QLabel, QSpinBox,
     QComboBox, QFileDialog, QProgressBar, QMessageBox,
     QDoubleSpinBox, QListWidget, QListWidgetItem, QAbstractItemView,
-    QCheckBox, QSplitter, QScrollArea, QMenu, QTabWidget
+    QCheckBox, QSplitter, QScrollArea, QMenu, QTabWidget, QLineEdit
 )
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtCore import Qt, QFile, QTextStream, QThread, QUrl, QEvent, QObject
@@ -346,6 +346,42 @@ class MainWindow(QMainWindow):
         res_layout.addWidget(self.res_spin)
         export_layout.addLayout(res_layout)
         
+        export_layout.addLayout(res_layout)
+
+        # Naming Convention
+        naming_group = QGroupBox("Naming Convention")
+        naming_layout = QVBoxLayout()
+        naming_layout.setSpacing(10)
+        
+        self.naming_mode_combo = QComboBox()
+        self.naming_mode_combo.addItem("RealityScan (Standard)", "realityscan")
+        self.naming_mode_combo.addItem("Simple Suffix (_mask)", "simple")
+        self.naming_mode_combo.addItem("Custom Pattern", "custom")
+        self.naming_mode_combo.currentIndexChanged.connect(self.on_naming_mode_changed)
+        self.naming_mode_combo.installEventFilter(self.scroll_blocker)
+        self.add_setting_row(naming_layout, "Naming Mode:", self.naming_mode_combo, "Choose how files are named. RealityScan requires a specific .mask.png format.")
+        
+        # Custom Patterns (Hidden by default)
+        self.custom_naming_widget = QWidget()
+        custom_naming_layout = QVBoxLayout(self.custom_naming_widget)
+        custom_naming_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Image Pattern
+        self.image_pattern_input = QLineEdit()
+        self.image_pattern_input.setPlaceholderText("{filename}_frame{frame}_{camera}")
+        self.image_pattern_input.textChanged.connect(self.on_setting_changed)
+        self.add_setting_row(custom_naming_layout, "Image Pattern:", self.image_pattern_input, "Available: {filename}, {frame}, {camera}, {ext}")
+        
+        # Mask Pattern
+        self.mask_pattern_input = QLineEdit()
+        self.mask_pattern_input.setPlaceholderText("{filename}_frame{frame}_{camera}_mask")
+        self.mask_pattern_input.textChanged.connect(self.on_setting_changed)
+        self.add_setting_row(custom_naming_layout, "Mask Pattern:", self.mask_pattern_input, "Available: {filename}, {frame}, {camera}, {ext}, {image_name}")
+
+        naming_layout.addWidget(self.custom_naming_widget)
+        naming_group.setLayout(naming_layout)
+        export_layout.addWidget(naming_group)
+        
         export_layout.addStretch()
         self.settings_tabs.addTab(tab_export, "Export")
 
@@ -521,7 +557,7 @@ class MainWindow(QMainWindow):
         telemetry_layout = QVBoxLayout()
         
         self.export_telemetry_check = QCheckBox("Export GPS/IMU Metadata")
-        self.export_telemetry_check.setToolTip("Attempts to extract GPMF (GoPro) or CAMM metadata and embed GPS into extracted frames.")
+        self.export_telemetry_check.setToolTip("Attempts to download internal telemetry (GPMF, CAMM) or automatically load a sidecar .gpx file with the same name.")
         self.export_telemetry_check.toggled.connect(self.on_setting_changed)
         telemetry_layout.addWidget(self.export_telemetry_check)
         
@@ -593,7 +629,10 @@ class MainWindow(QMainWindow):
             'smart_blur_enabled': self.smart_blur_check.isChecked(),
             'blur_threshold': self.blur_threshold_spin.value(),
             'sharpening_enabled': self.sharpen_check.isChecked(),
-            'sharpening_strength': self.sharpen_slider.value()
+            'sharpening_strength': self.sharpen_slider.value(),
+            'naming_mode': self.naming_mode_combo.currentData(),
+            'image_pattern': self.image_pattern_input.text(),
+            'mask_pattern': self.mask_pattern_input.text()
         }
 
     def set_ui_from_settings(self, settings):
@@ -664,6 +703,19 @@ class MainWindow(QMainWindow):
         self.sharpen_slider.setValue(settings.get('sharpening_strength', 0.5))
         self.sharpen_slider.setEnabled(self.sharpen_check.isChecked())
 
+        # Naming
+        naming_mode = settings.get('naming_mode', 'realityscan')
+        idx = self.naming_mode_combo.findData(naming_mode)
+        if idx >= 0:
+            self.naming_mode_combo.setCurrentIndex(idx)
+        else:
+            self.naming_mode_combo.setCurrentIndex(0)
+            
+        self.image_pattern_input.setText(settings.get('image_pattern', '{filename}_frame{frame}_{camera}'))
+        self.mask_pattern_input.setText(settings.get('mask_pattern', '{filename}_frame{frame}_{camera}_mask'))
+        
+        self.update_naming_ui_state()
+
         self.block_settings_signals(False)
 
     def block_settings_signals(self, block):
@@ -683,7 +735,11 @@ class MainWindow(QMainWindow):
         self.smart_blur_check.blockSignals(block)
         self.blur_threshold_spin.blockSignals(block)
         self.sharpen_check.blockSignals(block)
+        self.sharpen_check.blockSignals(block)
         self.sharpen_slider.blockSignals(block)
+        self.naming_mode_combo.blockSignals(block)
+        self.image_pattern_input.blockSignals(block)
+        self.mask_pattern_input.blockSignals(block)
 
     def update_default_settings_from_ui(self):
         self.default_settings = self.get_settings_from_ui()
@@ -734,6 +790,15 @@ class MainWindow(QMainWindow):
         self.sharpen_slider.setEnabled(checked)
         self.on_setting_changed()
 
+
+
+    def on_naming_mode_changed(self, index):
+        self.update_naming_ui_state()
+        self.on_setting_changed()
+
+    def update_naming_ui_state(self):
+        mode = self.naming_mode_combo.currentData()
+        self.custom_naming_widget.setVisible(mode == 'custom')
     def on_setting_changed(self):
         if self.is_processing:
             return

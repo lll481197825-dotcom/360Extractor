@@ -4,9 +4,12 @@ import logging
 import bisect
 from typing import Optional, Tuple, Any, List, Dict
 import piexif
+from PIL import Image
 from utils.gpmf_parser import GPMFParser
 from utils.srt_parser import parse_srt_data
 from utils.camm_parser import parse_camm_data
+from utils.gpx_parser import parse_gpx_data
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +22,22 @@ class TelemetryHandler:
     def extract_metadata(self, video_path: str) -> bool:
         """
         Extracts metadata from the video file using ffmpeg.
-        Checks for GPMF or CAMM streams.
+        Checks for GPMF or CAMM streams, OR a sidecar .gpx file.
         """
+        # 1. First Check for Sidecar GPX (Priority for Qoocam workflow)
+        base_name = os.path.splitext(video_path)[0]
+        gpx_path = f"{base_name}.gpx"
+        
+        # DEBUG: Print what we are looking for
+        logger.info(f"Looking for GPX file at: {gpx_path}")
+        
+        if os.path.exists(gpx_path):
+            logger.info(f"Found GPX sidecar file: {os.path.basename(gpx_path)}")
+            success = self._extract_gpx_data(gpx_path)
+            if success:
+                self.has_gps = True
+                return True
+
         try:
             # Check for streams using ffprobe
             cmd = [
@@ -164,6 +181,24 @@ class TelemetryHandler:
         except Exception as e:
             logger.error(f"Error parsing SRT data: {e}")
 
+    def _extract_gpx_data(self, gpx_path: str) -> bool:
+        """
+        Reads and parses a local GPX file.
+        """
+        try:
+            with open(gpx_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            samples = parse_gpx_data(content)
+            if samples:
+                self.gps_samples = samples
+                logger.info(f"Loaded {len(samples)} samples from GPX sidecar.")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to load GPX sidecar: {e}")
+            return False
+
     def get_gps_at_time(self, timestamp: float) -> Optional[Tuple[float, float, float]]:
         """
         Returns (lat, lon, alt) for a given video timestamp (in seconds).
@@ -236,9 +271,18 @@ class TelemetryHandler:
             
             exif_dict['GPS'] = gps_ifd
             exif_bytes = piexif.dump(exif_dict)
-            piexif.insert(exif_bytes, image_path)
+            
+            ext = os.path.splitext(image_path)[1].lower()
+            if ext in ['.jpg', '.jpeg']:
+                piexif.insert(exif_bytes, image_path)
+            else:
+                # For PNG/TIFF, use Pillow to save with EXIF
+                # This might be slower as it re-saves the file, but it's reliable.
+                with Image.open(image_path) as img:
+                    img.save(image_path, exif=exif_bytes)
+
             return True
             
         except Exception as e:
-            logger.error(f"Error embedding EXIF in {image_path}: {e}")
+            logger.error(f"Error embedding EXIF in {image_path}: {type(e).__name__} - {e}")
             return False
